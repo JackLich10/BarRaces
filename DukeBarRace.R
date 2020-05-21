@@ -125,3 +125,146 @@ anim_save("animation.mp4", animation = for_mp4)
 animate(anim, 200, fps = 20,  width = 1200, height = 1000, 
         renderer = gifski_renderer("gganim.gif"), end_pause = 15, start_pause =  15)
 
+# miscellaneous
+
+
+pbp %>%
+  mutate(naive_win_prob = case_when(
+    home != "Duke" ~ 1 - naive_win_prob,
+    TRUE ~ naive_win_prob),
+    wpa = naive_win_prob - lag(naive_win_prob),
+    opponent = case_when(
+      home == "Duke" ~ away,
+      TRUE ~ home),
+    shot_type = case_when(
+      three_pt == T ~ "Three",
+      str_detect(description, "Dunk") ~ "Dunk",
+      str_detect(description, "Layup") ~ "Layup",
+      str_detect(description, "Tip Shot") ~ "Tip Shot",
+      str_detect(description, "Jumper") & three_pt == F ~ "Jumper")) %>% 
+  filter(shot_team == "Duke",
+         free_throw == F) %>% 
+  group_by(shot_type, shot_outcome) %>% 
+  summarise(shots = n(),
+            avg_wpa = mean(wpa, na.rm = T)) %>% view()
+
+pbp %>%
+  mutate(naive_win_prob = case_when(
+    home != "Duke" ~ 1 - naive_win_prob,
+    TRUE ~ naive_win_prob),
+    wpa = naive_win_prob - lag(naive_win_prob)) %>%
+  filter(!is.na(shot_outcome),
+         shot_team == "Duke") %>% 
+  group_by(shooter, shot_outcome) %>% 
+  summarise(shots = n(),
+            avg_wpa = mean(wpa, na.rm = T),
+            total_wpa = sum(wpa, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(shooter = tidytext::reorder_within(shooter, avg_wpa, shot_outcome)) %>% 
+  ggplot(aes(x = shooter, y = avg_wpa, fill = shot_outcome)) +
+  geom_col(show.legend = F) +
+  facet_wrap(.~shot_outcome, scales = "free") +
+  coord_flip() +
+  scale_y_continuous(expand = c(0, 0)) +
+  tidytext::scale_x_reordered()
+
+pbp %>%
+  mutate(naive_win_prob = case_when(
+    home != "Duke" ~ 1 - naive_win_prob,
+    TRUE ~ naive_win_prob),
+    wpa = naive_win_prob - lag(naive_win_prob)) %>%
+  filter(!is.na(shot_outcome),
+         shot_team == "Duke",
+         between(naive_win_prob, .05, 0.95)) %>% 
+  group_by(shooter) %>% 
+  summarise(shots = n(),
+            avg_wpa = mean(wpa, na.rm = T),
+            total_wpa = sum(wpa, na.rm = T)) %>% 
+  filter(shots > 20) %>% 
+  ggplot(aes(x = reorder(shooter, avg_wpa), y = avg_wpa)) +
+  geom_col(fill = "#001A57") +
+  geom_text(aes(y = ifelse(avg_wpa == max(avg_wpa), 0.0015, 0.001), label = ifelse(avg_wpa == max(avg_wpa), paste0(shots, " FGA"), shots)), 
+            color = "white", fontface = "bold") +
+  geom_text(aes(label = paste0(round(100* avg_wpa, 2), "%")), 
+            hjust = 1.25, color = "white", fontface = "bold") +
+  coord_flip() +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  theme_bw() +
+  theme(plot.title = element_text(face = "bold", hjust = 0),
+        plot.subtitle = element_text(face = "italic"),
+        plot.caption = element_text(face = "italic", margin = ggplot2::margin(0, 0, 0, 0)),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.border = element_blank()) +
+  labs(title = "Duke Win Probability Added per FGA",
+       subtitle = "Win probability between 5% and 95%",
+       x = NULL,
+       y = "WPA/FGA",
+       caption = "Min. 20 FGA")
+
+pbp %>%
+  mutate(naive_win_prob = case_when(
+    home != "Duke" ~ 1 - naive_win_prob,
+    TRUE ~ naive_win_prob),
+    wpa = naive_win_prob - lag(naive_win_prob)) %>%
+  filter(!is.na(shot_outcome),
+         shot_team == "Duke") %>% 
+  group_by(shooter) %>% 
+  summarise(shots = n(),
+            avg_wpa = mean(wpa, na.rm = T),
+            total_wpa = sum(wpa, na.rm = T)) %>% 
+  pivot_longer(cols = c(avg_wpa, total_wpa), names_to = "metric") %>% 
+  ungroup() %>% 
+  mutate(shooter = tidytext::reorder_within(shooter, value, metric),
+         metric = case_when(
+           metric == "avg_wpa" ~ "WPA/FGA",
+           metric == "total_wpa" ~ "Total WPA"),
+         metric = fct_relevel(metric, "WPA/FGA", "Total WPA")) %>% 
+  filter(shots > 20) %>% 
+  ggplot(aes(x = shooter, y = value, fill = metric)) +
+  geom_col(position = position_dodge(0.9), show.legend = F) +
+  geom_text(aes(label = paste0(round(100 * value, 2), "%")), 
+            hjust = 1.25, size = 3, color = "white", fontface = "bold") +
+  coord_flip() +
+  facet_wrap(.~ metric, scales = "free") +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  tidytext::scale_x_reordered() +
+  scale_fill_manual(values = c("#235F9C", "#001A57")) +
+  theme_bw() +
+  theme(plot.title = element_text(face = "bold", hjust = 0),
+        plot.subtitle = element_text(face = "italic"),
+        plot.caption = element_text(face = "italic", margin = ggplot2::margin(0, 0, 0, 0)),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.border = element_blank()) +
+  labs(title = "Duke Win Probability Added on FGA",
+       subtitle = "2019-20 Season",
+       x = NULL,
+       y = NULL,
+       caption = "Min. 20 FGA")
+
+a<-pbp %>%
+  mutate(naive_win_prob = case_when(
+    home != "Duke" ~ 1 - naive_win_prob,
+    TRUE ~ naive_win_prob),
+    wpa = naive_win_prob - lag(naive_win_prob)) %>% 
+  select(home_score, away_score, description, wpa) %>% 
+  filter(description != "PLAY") %>% 
+  arrange(abs(wpa))
+
+pbp %>%
+  mutate(naive_win_prob = case_when(
+    home != "Duke" ~ 1 - naive_win_prob,
+    TRUE ~ naive_win_prob),
+    wpa = naive_win_prob - lag(naive_win_prob)) %>%
+  filter(!is.na(shot_outcome),
+         shot_team == "Duke") %>% 
+  group_by(shooter) %>% 
+  mutate(shots = n()) %>% 
+  filter(shots > 20) %>% 
+  ggplot(aes(x = wpa)) +
+  geom_histogram() +
+  facet_wrap(.~ shooter, scales = "free")
+
