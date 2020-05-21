@@ -14,16 +14,15 @@ DukeLogo <- ncaahoopR::ncaa_colors %>%
 # format data for bar race
 pbp_formatted <- pbp %>%
   mutate(naive_win_prob = case_when(
-    home != "Duke" ~ 1 - naive_win_prob,
-    TRUE ~ naive_win_prob),
-    wpa = naive_win_prob - lag(naive_win_prob),
+      home != "Duke" ~ 1 - naive_win_prob,
+      TRUE ~ naive_win_prob),
+      wpa = naive_win_prob - lag(naive_win_prob),
     opponent = case_when(
       home == "Duke" ~ away,
       TRUE ~ home)) %>%
-  filter(!is.na(shot_outcome),
-         shot_team == "Duke") %>% 
+  filter(!is.na(shot_outcome), free_throw == F, shot_team == "Duke") %>% 
   group_by(shooter, opponent, date) %>% 
-  summarise(shots = sum(!is.na(shot_outcome) & free_throw == F),
+  summarise(shots = sum(!is.na(shot_outcome)),
             avg_wpa = mean(wpa, na.rm = T),
             wpa = sum(wpa, na.rm = T)) %>% 
   ungroup() 
